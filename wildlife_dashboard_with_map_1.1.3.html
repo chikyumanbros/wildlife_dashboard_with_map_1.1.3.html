@@ -1,0 +1,2822 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>野生動物捕獲データ分析ダッシュボード</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.21.1/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <style>
+        /* 全体のスタイル */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        /* ドロップゾーンのスタイル */
+        #dropzone {
+            border: 2px dashed #ccc;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            transition: background-color 0.3s ease;
+        }
+
+        #dropzone:hover {
+            background-color: #f0f0f0;
+        }
+
+        /* チャートコンテナのスタイル */
+        #charts {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .chart-container {
+            width: 48%;
+            margin-bottom: 20px;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .chart-container.small {
+            width: 30%;
+        }
+
+        /* マップのスタイル */
+        #map {
+            height: 600px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        /* 統計情報のスタイル */
+        #statistics {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        /* フォームのスタイル */
+        #dataInputForm {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+
+        #dataInputForm input,
+        #dataInputForm select {
+            margin: 5px;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+
+        /* ボタンの共通スタイル */
+        .dashboard-button {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+            margin-bottom: 20px;
+            transition: background-color 0.3s ease;
+        }
+
+        .dashboard-button:hover {
+            background-color: #45a049;
+        }
+
+        /* モーダルのスタイル */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1001;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.4);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            border-radius: 5px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 24px;
+            color: #333;
+        }
+
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            padding: 0 10px;
+            transition: color 0.3s ease;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: #000;
+            text-decoration: none;
+        }
+
+        .close-instruction {
+            font-style: italic;
+            color: #666;
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: #f8f8f8;
+            border-radius: 4px;
+        }
+
+        /* マニュアル内容のスタイル */
+        #manualContent {
+            font-size: 16px;
+            line-height: 1.6;
+        }
+
+        #manualContent h1 {
+            font-size: 28px;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+            margin-top: 30px;
+        }
+
+        #manualContent h2 {
+            font-size: 24px;
+            margin-top: 25px;
+            color: #4CAF50;
+        }
+
+        #manualContent h3 {
+            font-size: 20px;
+            margin-top: 20px;
+        }
+
+        #manualContent ul,
+        #manualContent ol {
+            padding-left: 30px;
+        }
+
+        #manualContent li {
+            margin-bottom: 5px;
+        }
+
+        /* コントロールとフィルターのスタイル */
+        #controls,
+        #yearComparisonControls {
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+        }
+
+        #controls select,
+        #yearComparisonControls select {
+            margin-right: 10px;
+            padding: 5px;
+        }
+
+        /* タイムスライダーのスタイル */
+        #timeSlider {
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        /* 比較チャートのスタイル */
+        .comparison-container {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .comparison-chart {
+            width: 48%;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        /* レスポンシブデザイン */
+        @media screen and (max-width: 600px) {
+
+            .chart-container,
+            .chart-container.small {
+                width: 100%;
+            }
+
+            .modal-content {
+                width: 95%;
+                margin: 10% auto;
+            }
+
+            .dashboard-button {
+                width: 100%;
+                margin-bottom: 10px;
+            }
+
+            .comparison-chart {
+                width: 100%;
+            }
+        }
+
+        /* ダークモード用の変数 */
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #333333;
+            --chart-bg: #ffffff;
+            --border-color: #dddddd;
+            --button-bg: #4CAF50;
+            --button-hover: #45a049;
+            --dropdown-bg: #f9f9f9;
+            --modal-bg: #fefefe;
+            --close-color: #aaaaaa;
+            --close-hover: #000000;
+        }
+
+        /* ダークモード時の変数 */
+        [data-theme="dark"] {
+            --bg-color: #1e1e1e;
+            --text-color: #e0e0e0;
+            --chart-bg: #2d2d2d;
+            --border-color: #444444;
+            --button-bg: #2e7d32;
+            --button-hover: #1b5e20;
+            --dropdown-bg: #2d2d2d;
+            --modal-bg: #2d2d2d;
+            --close-color: #888888;
+            --close-hover: #ffffff;
+        }
+
+        /* 全体のスタイル */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--bg-color);
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        /* ドロップゾーンのスタイル */
+        #dropzone {
+            border: 2px dashed var(--border-color);
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            background-color: var(--dropdown-bg);
+            border-radius: 5px;
+            transition: background-color 0.3s ease;
+        }
+
+        #dropzone:hover {
+            background-color: var(--chart-bg);
+        }
+
+        /* チャートコンテナのスタイル */
+        #charts {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .chart-container {
+            width: 48%;
+            margin-bottom: 20px;
+            background-color: var(--chart-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            padding: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .chart-container.small {
+            width: 30%;
+        }
+
+        /* マップのスタイル */
+        #map {
+            height: 600px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        /* 統計情報のスタイル */
+        #statistics {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: var(--dropdown-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+        }
+
+        /* フォームのスタイル */
+        #dataInputForm {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            background-color: var(--dropdown-bg);
+        }
+
+        #dataInputForm input,
+        #dataInputForm select {
+            margin: 5px;
+            padding: 5px;
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+        }
+
+        /* ボタンの共通スタイル */
+        .dashboard-button {
+            padding: 10px 15px;
+            background-color: var(--button-bg);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+            margin-bottom: 20px;
+            transition: background-color 0.3s ease;
+        }
+
+        .dashboard-button:hover {
+            background-color: var(--button-hover);
+        }
+
+        /* モーダルのスタイル */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1001;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.4);
+        }
+
+        .modal-content {
+            background-color: var(--modal-bg);
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            width: 80%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            border-radius: 5px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 24px;
+            color: var(--text-color);
+        }
+
+        .close {
+            color: var(--close-color);
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            padding: 0 10px;
+            transition: color 0.3s ease;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: var(--close-hover);
+            text-decoration: none;
+        }
+
+        .close-instruction {
+            font-style: italic;
+            color: var(--text-color);
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: var(--dropdown-bg);
+            border-radius: 4px;
+        }
+
+        /* マニュアル内容のスタイル */
+        #manualContent {
+            font-size: 16px;
+            line-height: 1.6;
+        }
+
+        #manualContent h1 {
+            font-size: 28px;
+            border-bottom: 2px solid var(--button-bg);
+            padding-bottom: 10px;
+            margin-top: 30px;
+        }
+
+        #manualContent h2 {
+            font-size: 24px;
+            margin-top: 25px;
+            color: var(--button-bg);
+        }
+
+        #manualContent h3 {
+            font-size: 20px;
+            margin-top: 20px;
+        }
+
+        #manualContent ul,
+        #manualContent ol {
+            padding-left: 30px;
+        }
+
+        #manualContent li {
+            margin-bottom: 5px;
+        }
+
+        /* コントロールとフィルターのスタイル */
+        #controls,
+        #yearComparisonControls {
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: var(--dropdown-bg);
+            border-radius: 5px;
+        }
+
+        #controls select,
+        #yearComparisonControls select {
+            margin-right: 10px;
+            padding: 5px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+        }
+
+        /* タイムスライダーのスタイル */
+        #timeSlider {
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        /* 比較チャートのスタイル */
+        .comparison-container {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .comparison-chart {
+            width: 48%;
+            background-color: var(--chart-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            padding: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        /* レスポンシブデザイン */
+        @media screen and (max-width: 600px) {
+
+            .chart-container,
+            .chart-container.small {
+                width: 100%;
+            }
+
+            .modal-content {
+                width: 95%;
+                margin: 10% auto;
+            }
+
+            .dashboard-button {
+                width: 100%;
+                margin-bottom: 10px;
+            }
+
+            .comparison-chart {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <h1>野生動物捕獲データ分析ダッシュボード</h1>
+
+    <!-- HTML: ボタンとモーダルの追加 -->
+    <button id="exportCSVButton" class="dashboard-button" onclick="exportCSV()">CSVエクスポート</button>
+    <button id="showManualButton" class="dashboard-button">マニュアル表示</button>
+    <button id="darkModeToggle" class="dashboard-button">ダークモード切替</button>
+
+    <div id="manualModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>野生動物捕獲データ分析ダッシュボード操作マニュアル</h2>
+                <span class="close">&times;</span>
+            </div>
+            <p class="close-instruction">マニュアルを閉じるには、右上の×ボタンをクリックするか、ESCキーを押してください。</p>
+            <div id="manualContent"></div>
+        </div>
+    </div>
+
+    <div id="dropzone" style="margin-top: 20px;">
+        CSVファイルをここにドラッグ＆ドロップするか、クリックしてファイルを選択してください。
+        <input type="file" id="fileInput" accept=".csv" multiple style="display: none;">
+    </div>
+    <div id="csvFileList">
+        <h3>読み込んだCSVファイル</h3>
+        <ul id="fileList"></ul>
+    </div>
+    <div id="dataInputForm">
+        <h3>新しい捕獲記録を追加</h3>
+        <input type="date" id="newDate" required>
+        <select id="newSpecies" required>
+            <option value="">獣種を選択</option>
+        </select>
+        <button id="addNewSpecies">新しい獣種を追加</button>
+        <select id="newGender" required>
+            <option value="">性別を選択</option>
+            <option value="オス">オス</option>
+            <option value="メス">メス</option>
+            <option value="不明">不明</option>
+        </select>
+        <input type="number" id="newLength" placeholder="体長(cm)">
+        <input type="text" id="newLocation" placeholder="緯度,経度">
+        <button onclick="addNewData()">追加</button>
+    </div>
+
+    <div id="addSpeciesModal" style="display:none;">
+        <h4>新しい獣種を追加</h4>
+        <input type="text" id="newSpeciesName" placeholder="獣種名">
+        <input type="text" id="newSpeciesAliases" placeholder="別名（カンマ区切り）">
+        <button id="saveNewSpecies">保存</button>
+        <button id="cancelNewSpecies">キャンセル</button>
+    </div>
+
+    <div id="csvFileList">
+        <h3>読み込んだCSVファイル</h3>
+        <ul id="fileList"></ul>
+    </div>
+
+    <div id="csvPreview" style="display: none;">
+        <h3>CSVプレビュー</h3>
+        <table id="previewTable"></table>
+    </div>
+
+    <div id="dataEditor" style="display: none;">
+        <h3>データ編集</h3>
+        <table id="editTable"></table>
+        <button onclick="saveEditedData()">変更を保存</button>
+        <button onclick="cancelEdit()">キャンセル</button>
+    </div>
+
+    <div id="controls">
+        <label for="speciesSelect">獣種フィルター:</label>
+        <select id="speciesSelect"></select>
+        <label for="yearSelect">年フィルター:</label>
+        <select id="yearSelect"></select>
+        <label for="genderSelect">性別フィルター:</label>
+        <select id="genderSelect">
+            <option value="すべて">すべて</option>
+            <option value="オス">オス</option>
+            <option value="メス">メス</option>
+            <option value="不明">不明</option>
+        </select>
+    </div>
+
+    <div id="yearComparisonControls">
+        <label for="yearSelect1">比較年1:</label>
+        <select id="yearSelect1"></select>
+        <label for="yearSelect2">比較年2:</label>
+        <select id="yearSelect2"></select>
+        <label for="yearComparisonSpeciesSelect">獣種:</label>
+        <select id="yearComparisonSpeciesSelect">
+            <option value="すべて">すべて</option>
+        </select>
+        <label for="yearComparisonGenderSelect">性別:</label>
+        <select id="yearComparisonGenderSelect">
+            <option value="すべて">すべて</option>
+            <option value="オス">オス</option>
+            <option value="メス">メス</option>
+            <option value="不明">不明</option>
+        </select>
+        <button id="compareYearsButton">年を比較</button>
+        <button id="clearYearComparisonButton">比較解除</button>
+    </div>
+
+    <div class="comparison-container">
+        <div class="comparison-chart">
+            <canvas id="yearComparisonChart1"></canvas>
+        </div>
+        <div class="comparison-chart">
+            <canvas id="yearComparisonChart2"></canvas>
+        </div>
+    </div>
+
+    <div id="weatherDataSection">
+        <h3>気象データの取得</h3>
+        <p><strong>注意：</strong> 気象データ取得機能は現在利用できません。今後のアップデートをお待ちください。</p>
+        <p>選択された観測所: <span id="selectedWeatherStation">未選択</span></p>
+        <button onclick="showWeatherDataUnavailableMessage()" disabled>気象データを取得</button>
+    </div>
+
+    <!-- 気象データと捕獲データの相関チャート -->
+    <div>
+        <canvas id="weatherCorrelationChart"></canvas>
+    </div>
+
+    <div id="charts">
+        <div class="chart-container">
+            <h2>鳥獣種別捕獲数</h2>
+            <canvas id="speciesChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h2>月別捕獲数推移</h2>
+            <canvas id="monthlyChart"></canvas>
+        </div>
+        <div class="chart-container small">
+            <h2>性別ごとの捕獲数</h2>
+            <canvas id="genderChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h2>種別・性別捕獲数</h2>
+            <canvas id="speciesGenderChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h2>季節別捕獲数</h2>
+            <canvas id="seasonalChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h2>体長分布</h2>
+            <canvas id="lengthDistributionChart"></canvas>
+        </div>
+    </div>
+
+    <div id="map-container">
+        <h2>捕獲位置マップ</h2>
+        <div id="map"></div>
+        <div id="map-controls">
+            <button id="playButton">再生</button>
+            <button id="pauseButton">一時停止</button>
+            <button id="resetButton">リセット</button>
+            <input type="range" id="timeSlider" min="0" max="100" value="0">
+            <span id="currentDate"></span>
+            <label><input type="checkbox" id="showTrajectory"> 軌跡を表示</label>
+        </div>
+    </div>
+
+    <div id="statistics">
+        <h2>統計情報</h2>
+        <p>総捕獲数: <span id="totalCaptures"></span></p>
+        <p>オス捕獲数: <span id="maleCaptures"></span></p>
+        <p>メス捕獲数: <span id="femaleCaptures"></span></p>
+        <p>性別不明捕獲数: <span id="unknownGenderCaptures"></span></p>
+        <p>平均体長: <span id="averageLength"></span> cm</p>
+        <p>最多捕獲獣種: <span id="mostCapturedSpecies"></span></p>
+    </div>
+
+    <script>
+        // グローバル変数
+        let speciesChart, monthlyChart, genderChart, speciesGenderChart, seasonalChart, lengthDistributionChart;
+        let allData = [];
+        let loadedFiles = [];
+        let currentEditIndex = -1;
+        let animationInterval;
+        let updateTimeout;
+        let currentAnimationIndex = 0;
+        let map, mapMarkers = [], trajectoryLine;
+        let showTrajectory = false;
+        let isPlaying = false;
+        let isClearing = false;
+        let isAnimationStarted = false;
+        let densityHeatmap;
+        let filteredData = [];
+        let currentSpecies = 'すべて';
+        let currentYear = 'すべて';
+        let currentGender = 'すべて';
+
+        // マニュアルの内容（前回作成したマニュアルの内容をここに記述）
+        const manualContent = `
+# 野生動物捕獲データ分析ダッシュボード操作マニュアル
+
+## 1. はじめに
+
+この野生動物捕獲データ分析ダッシュボードは、野生動物の捕獲データを視覚化し、分析するためのツールです。CSVファイルからデータをインポートし、様々なグラフや地図を通じてデータを探索することができます。
+
+## 2. データのインポート
+
+### 2.1 CSVファイルのアップロード
+1. 「CSVファイルをここにドラッグ＆ドロップするか、クリックしてファイルを選択してください。」と書かれたエリアをクリックするか、ファイルをドラッグ＆ドロップします。
+2. 複数のCSVファイルを同時にアップロードできます。
+
+### 2.2 データの確認
+- アップロードしたファイルは「読み込んだCSVファイル」リストに表示されます。
+- 各ファイルに対して「プレビュー」「編集」「削除」ボタンがあります。
+
+### 2.3 データの編集
+1. ファイルリストの「編集」ボタンをクリックします。
+2. 表示されたテーブルで、データを直接編集できます。
+3. 編集後、「変更を保存」をクリックして変更を適用します。
+
+## 3. データの可視化
+
+### 3.1 チャート
+以下のチャートが自動的に生成されます：
+- 鳥獣種別捕獲数
+- 月別捕獲数推移
+- 性別ごとの捕獲数
+- 種別・性別捕獲数
+- 季節別捕獲数
+- 体長分布
+
+### 3.2 地図
+- 捕獲位置が地図上にマーカーで表示されます。
+- マーカーをクリックすると、詳細情報がポップアップで表示されます。
+- ヒートマップ機能により、捕獲密度が可視化されます。
+
+### 3.3 統計情報
+画面下部に以下の統計情報が表示されます：
+- 総捕獲数
+- オス捕獲数
+- メス捕獲数
+- 性別不明捕獲数
+- 平均体長
+- 最多捕獲獣種
+
+## 4. データのフィルタリング
+
+### 4.1 フィルターの使用
+画面上部にあるドロップダウンメニューを使用して、以下の条件でデータをフィルタリングできます：
+- 獣種
+- 年
+- 性別
+
+フィルターを適用すると、すべてのチャート、地図、統計情報が自動的に更新されます。
+
+## 5. アニメーション機能
+
+### 5.1 アニメーションの操作
+- 「再生」ボタン：時系列でデータの変化を表示します。
+- 「一時停止」ボタン：アニメーションを一時停止します。
+- 「リセット」ボタン：アニメーションを初期状態に戻します。
+
+### 5.2 タイムスライダー
+- スライダーを動かすことで、特定の時点のデータを表示できます。
+
+### 5.3 軌跡表示
+- 「軌跡を表示」チェックボックスをオンにすると、捕獲の時系列順序を線で表示します。
+
+## 6. 年別比較
+
+### 6.1 年の選択
+1. 「比較年1」と「比較年2」でそれぞれ年を選択します。
+2. 必要に応じて、「獣種」と「性別」のドロップダウンメニューから特定の獣種や性別を選択します。
+
+### 6.2 比較の実行
+1. 「年を比較」ボタンをクリックすると、選択した条件に基づいて2年の月別捕獲数のグラフが表示されます。
+2. グラフは2つ表示され、それぞれ選択した年のデータを表します。
+
+### 6.3 比較の解除
+- 「比較解除」ボタンで比較表示を終了し、選択した条件をリセットします。
+
+## 7. 新規データの追加
+
+### 7.1 手動でのデータ追加
+1. 「新しい捕獲記録を追加」セクションで、各項目（日付、獣種、性別、体長、捕獲場所）を入力します。
+2. 「追加」ボタンをクリックしてデータを追加します。
+
+### 7.2 新しい獣種の追加
+1. 獣種選択で「新しい獣種を追加」をクリックします。
+2. 表示されたモーダルウィンドウで、獣種名と別名（カンマ区切り）を入力します。
+3. 「保存」をクリックして新しい獣種を追加します。
+4. 追加された獣種は、メインの獣種フィルターと年別比較の獣種フィルターの両方に反映されます。
+
+## 8. データのエクスポート
+
+1. 「CSVエクスポート」ボタンをクリックします。
+2. ブラウザのダウンロード機能を使用して、生成されたCSVファイルを保存します。
+
+## 9. 注意事項
+
+- 大量のデータを扱う場合、処理に時間がかかる場合があります。
+- ブラウザの更新ボタンをクリックすると、アップロードしたデータが失われます。必要に応じてデータをエクスポートしてください。
+- 気象データ取得機能は現在利用できません。今後のアップデートをお待ちください。
+- 新しい獣種を追加した後、その獣種がすべてのフィルターと選択肢に反映されるまで少し時間がかかる場合があります。
+
+## 10. トラブルシューティング
+
+### 10.1 データが表示されない
+- CSVファイルの形式が正しいことを確認してください。
+- ファイルを再度アップロードしてみてください。
+
+### 10.2 新しい獣種が選択肢に表示されない
+- ページを再読み込みしてみてください。
+- 獣種を再度追加してみてください。
+
+### 10.3 地図が正しく表示されない
+- ブラウザのコンソールでエラーメッセージを確認してください。
+- ページを再読み込みしてみてください。
+
+問題が解決しない場合は、システム管理者にお問い合わせください。
+`;
+
+        // 気象観測所のリスト（より多くの観測所を追加する必要があります）
+        const weatherStations = [
+            { id: '47401', name: '稚内', lat: 45.4150, lon: 141.6783 },
+            { id: '47412', name: '旭川', lat: 43.7575, lon: 142.3722 },
+            { id: '47420', name: '釧路', lat: 42.9847, lon: 144.3767 },
+            { id: '47421', name: '札幌', lat: 43.0600, lon: 141.3283 },
+            { id: '47430', name: '根室', lat: 43.3300, lon: 145.5867 },
+            { id: '47575', name: '寿都', lat: 42.7894, lon: 140.2292 },
+            { id: '47582', name: '浦河', lat: 42.1600, lon: 142.7750 },
+            { id: '47585', name: '網走', lat: 44.0172, lon: 144.2731 },
+            { id: '47590', name: '広尾', lat: 42.2833, lon: 143.3167 },
+            { id: '47595', name: '室蘭', lat: 42.3119, lon: 140.9747 },
+            { id: '47598', name: '函館', lat: 41.8164, lon: 140.7539 },
+            { id: '47600', name: '青森', lat: 40.8219, lon: 140.7683 },
+            { id: '47604', name: '秋田', lat: 39.7167, lon: 140.0986 },
+            { id: '47605', name: '盛岡', lat: 39.6983, lon: 141.1650 },
+            { id: '47607', name: '山形', lat: 38.2556, lon: 140.3464 },
+            { id: '47610', name: '仙台', lat: 38.2683, lon: 140.8950 },
+            { id: '47615', name: '福島', lat: 37.7567, lon: 140.4733 },
+            { id: '47616', name: '新潟', lat: 37.8944, lon: 139.0186 },
+            { id: '47624', name: '金沢', lat: 36.5889, lon: 136.6336 },
+            { id: '47626', name: '富山', lat: 36.7081, lon: 137.2014 },
+            { id: '47629', name: '長野', lat: 36.6628, lon: 138.1914 },
+            { id: '47636', name: '宇都宮', lat: 36.5486, lon: 139.8681 },
+            { id: '47637', name: '福井', lat: 36.0550, lon: 136.2217 },
+            { id: '47638', name: '前橋', lat: 36.4056, lon: 139.0603 },
+            { id: '47646', name: '熊谷', lat: 36.1511, lon: 139.3808 },
+            { id: '47648', name: '水戸', lat: 36.3781, lon: 140.4647 },
+            { id: '47662', name: '東京', lat: 35.6894, lon: 139.6917 },
+            { id: '47670', name: '銚子', lat: 35.7383, lon: 140.8564 },
+            { id: '47672', name: '館山', lat: 34.9883, lon: 139.8694 },
+            { id: '47678', name: '静岡', lat: 34.9833, lon: 138.4000 },
+            { id: '47682', name: '甲府', lat: 35.6667, lon: 138.5539 },
+            { id: '47684', name: '名古屋', lat: 35.1667, lon: 136.9667 },
+            { id: '47690', name: '飯田', lat: 35.5147, lon: 137.8222 },
+            { id: '47740', name: '京都', lat: 35.0144, lon: 135.7394 },
+            { id: '47741', name: '彦根', lat: 35.2744, lon: 136.2433 },
+            { id: '47746', name: '下関', lat: 33.9492, lon: 130.9242 },
+            { id: '47750', name: '広島', lat: 34.3992, lon: 132.4622 },
+            { id: '47755', name: '松江', lat: 35.4567, lon: 133.0650 },
+            { id: '47759', name: '米子', lat: 35.4333, lon: 133.3333 },
+            { id: '47761', name: '鳥取', lat: 35.4867, lon: 134.2378 },
+            { id: '47765', name: '岡山', lat: 34.6650, lon: 133.9244 },
+            { id: '47772', name: '大阪', lat: 34.6822, lon: 135.5186 },
+            { id: '47777', name: '神戸', lat: 34.6961, lon: 135.2111 },
+            { id: '47780', name: '和歌山', lat: 34.2281, lon: 135.1625 },
+            { id: '47784', name: '徳島', lat: 34.0661, lon: 134.5739 },
+            { id: '47800', name: '高松', lat: 34.3167, lon: 134.0500 },
+            { id: '47807', name: '松山', lat: 33.8414, lon: 132.7764 },
+            { id: '47815', name: '高知', lat: 33.5667, lon: 133.5500 },
+            { id: '47819', name: '宿毛', lat: 32.9167, lon: 132.7000 },
+            { id: '47827', name: '福岡', lat: 33.5814, lon: 130.3750 },
+            { id: '47830', name: '佐賀', lat: 33.2647, lon: 130.3058 },
+            { id: '47843', name: '大分', lat: 33.2342, lon: 131.6189 },
+            { id: '47855', name: '長崎', lat: 32.7333, lon: 129.8667 },
+            { id: '47887', name: '鹿児島', lat: 31.5603, lon: 130.5581 },
+            { id: '47891', name: '宮崎', lat: 31.9386, lon: 131.4139 },
+            { id: '47893', name: '熊本', lat: 32.8133, lon: 130.7075 },
+            { id: '47895', name: '加世田', lat: 31.4167, lon: 130.3500 },
+            { id: '47909', name: '名瀬', lat: 28.3783, lon: 129.4953 },
+            { id: '47912', name: '石垣島', lat: 24.3367, lon: 124.1639 },
+            { id: '47918', name: '那覇', lat: 26.2064, lon: 127.6859 },
+            { id: '47927', name: '宮古島', lat: 24.7933, lon: 125.2808 },
+            { id: '47936', name: '南大東島', lat: 25.8292, lon: 131.2306 },
+            { id: '47945', name: '父島', lat: 27.0917, lon: 142.1836 },
+            { id: '47971', name: '南鳥島', lat: 24.2883, lon: 153.9833 },
+            { id: '47991', name: '沖ノ鳥島', lat: 20.4256, lon: 136.0706 }
+        ];
+
+        let selectedWeatherStation = null;
+
+        // 獣種リストの初期化
+        let speciesList = [
+            { name: 'ニホンザル', aliases: ['猿', 'サル'] },
+            { name: 'ニホンジカ', aliases: ['鹿', 'シカ'] },
+            { name: 'イノシシ', aliases: ['猪', 'シシ'] },
+            { name: 'ニホンアナグマ', aliases: ['穴熊', 'アナグマ'] }
+        ];
+
+
+        // 獣種別アイコン（CDNを使用）
+        const speciesIcons = {
+            'イノシシ': 'https://cdn.jsdelivr.net/gh/pointhi/leaflet-color-markers@master/img/marker-icon-2x-red.png',
+            'ニホンジカ': 'https://cdn.jsdelivr.net/gh/pointhi/leaflet-color-markers@master/img/marker-icon-2x-green.png',
+            'ニホンザル': 'https://cdn.jsdelivr.net/gh/pointhi/leaflet-color-markers@master/img/marker-icon-2x-blue.png',
+            'ニホンアナグマ': 'https://cdn.jsdelivr.net/gh/pointhi/leaflet-color-markers@master/img/marker-icon-2x-yellow.png'
+        };
+
+        const availableColors = [
+            'red', 'blue', 'green', 'yellow', 'orange', 'violet', 'grey', 'black'
+        ];
+        let colorIndex = 0;
+
+        // HTML構造の確認
+        function checkHTMLStructure() {
+            console.log("Checking HTML structure");
+            const elements = ['playButton', 'pauseButton', 'resetButton', 'timeSlider', 'map'];
+            elements.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    console.log(`Element '${id}' found`);
+                } else {
+                    console.error(`Element '${id}' not found`);
+                }
+            });
+        }
+
+        function init() {
+            console.log("Initializing application");
+            checkHTMLStructure();
+            initializeDropzone();
+            initializeControls();
+            initializeCharts();
+            initializeMap();
+            updateSpeciesSelect(); // 獣種選択の初期化
+            updateSpeciesFilter(); // 獣種フィルターの初期化
+            initializeFilters();
+            applyFiltersAndUpdateDashboard();
+            initializeMapControls();
+            initializeYearComparison();
+            updateYearComparisonSpeciesSelect(); // 年比較の獣種選択を初期化
+        }
+
+
+        // 日付をフォーマットする補助関数
+        function formatDate(date) {
+            const year = date.getFullYear();
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const day = date.getDate().toString().padStart(2, '0');
+            return `${year}/${month}/${day}`;
+        }
+
+        // ドロップゾーンの初期化
+        function initializeDropzone() {
+            const dropzone = document.getElementById('dropzone');
+            const fileInput = document.getElementById('fileInput');
+
+            dropzone.addEventListener('click', () => fileInput.click());
+            dropzone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropzone.style.backgroundColor = '#f0f0f0';
+            });
+            dropzone.addEventListener('dragleave', () => {
+                dropzone.style.backgroundColor = '';
+            });
+            dropzone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropzone.style.backgroundColor = '';
+                handleFiles(e.dataTransfer.files);
+            });
+            fileInput.addEventListener('change', (e) => {
+                handleFiles(e.target.files);
+            });
+        }
+
+        // エンコーディングの検出
+        function detectEncoding(content) {
+            const uint8Array = new Uint8Array(content);
+            if (uint8Array[0] === 0xEF && uint8Array[1] === 0xBB && uint8Array[2] === 0xBF) {
+                return 'UTF-8';
+            } else if (uint8Array[0] === 0xFF && uint8Array[1] === 0xFE) {
+                return 'UTF-16LE';
+            } else if (uint8Array[0] === 0xFE && uint8Array[1] === 0xFF) {
+                return 'UTF-16BE';
+            } else {
+                return 'Shift-JIS'; // デフォルトとしてShift-JISを使用
+            }
+        }
+
+
+        function initializeCharts() {
+            console.log("Initializing charts...");
+
+            // 種別捕獲数チャート
+            const speciesCtx = document.getElementById('speciesChart').getContext('2d');
+            speciesChart = new Chart(speciesCtx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        data: [],
+                        backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        title: { display: true, text: '鳥獣種別捕獲数' }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+            console.log("Species chart initialized");
+
+            // 月別捕獲数推移チャート
+            const monthlyCtx = document.getElementById('monthlyChart').getContext('2d');
+            monthlyChart = new Chart(monthlyCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
+                    datasets: [{
+                        data: Array(12).fill(0),
+                        backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                        borderColor: 'rgb(75, 192, 192)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        title: { display: true, text: '月別捕獲数推移' }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    }
+                }
+            });
+            console.log("Monthly chart initialized");
+
+            // 性別ごとの捕獲数チャート
+            const genderCtx = document.getElementById('genderChart').getContext('2d');
+            genderChart = new Chart(genderCtx, {
+                type: 'pie',
+                data: {
+                    labels: ['オス', 'メス', '不明'],
+                    datasets: [{
+                        data: [0, 0, 0],
+                        backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'top' },
+                        title: { display: true, text: '性別ごとの捕獲数' }
+                    }
+                }
+            });
+            console.log("Gender chart initialized");
+
+            // 種別・性別捕獲数チャート
+            const speciesGenderCtx = document.getElementById('speciesGenderChart').getContext('2d');
+            speciesGenderChart = new Chart(speciesGenderCtx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'オス', data: [], backgroundColor: 'rgba(255, 99, 132, 0.6)' },
+                        { label: 'メス', data: [], backgroundColor: 'rgba(54, 162, 235, 0.6)' },
+                        { label: '不明', data: [], backgroundColor: 'rgba(255, 206, 86, 0.6)' }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'top' },
+                        title: { display: true, text: '種別・性別捕獲数' }
+                    },
+                    scales: {
+                        x: { stacked: true },
+                        y: { stacked: true, beginAtZero: true }
+                    }
+                }
+            });
+            console.log("Species-gender chart initialized");
+
+            // 季節別捕獲数チャート
+            const seasonalCtx = document.getElementById('seasonalChart').getContext('2d');
+            seasonalChart = new Chart(seasonalCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['春', '夏', '秋', '冬'],
+                    datasets: [{
+                        data: [0, 0, 0, 0],
+                        backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        title: { display: true, text: '季節別捕獲数' }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+            console.log("Seasonal chart initialized");
+
+            // 体長分布チャート
+            const lengthDistributionCtx = document.getElementById('lengthDistributionChart').getContext('2d');
+            lengthDistributionChart = new Chart(lengthDistributionCtx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        data: [],
+                        backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        title: { display: true, text: '体長分布' }
+                    },
+                    scales: {
+                        x: { title: { display: true, text: '体長 (cm)' } },
+                        y: {
+                            title: { display: true, text: '捕獲数' },
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+            console.log("Length distribution chart initialized");
+
+            console.log("All charts initialized");
+        }
+
+        function initializeMap() {
+            console.log("Initializing map...");
+            if (map) {
+                map.remove();
+            }
+
+            const validData = allData.filter(d => d.latitude && d.longitude);
+
+            let centerLat, centerLon, zoom;
+            if (validData.length === 0) {
+                console.log("No valid coordinates found in the data. Initializing map with default view.");
+                centerLat = 35.6895;  // 東京の緯度
+                centerLon = 139.6917; // 東京の経度
+                zoom = 5;
+            } else {
+                const latitudes = validData.map(d => d.latitude);
+                const longitudes = validData.map(d => d.longitude);
+                centerLat = latitudes.reduce((a, b) => a + b, 0) / latitudes.length;
+                centerLon = longitudes.reduce((a, b) => a + b, 0) / longitudes.length;
+                zoom = 13;
+            }
+
+            map = L.map('map', {
+                center: [centerLat, centerLon],
+                zoom: zoom,
+                preferCanvas: true
+            });
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            densityHeatmap = L.heatLayer([], {
+                radius: 50,
+                blur: 30,
+                maxZoom: 17,
+                max: 1.0,  // 最大値を1.0に設定
+                gradient: { 0.4: 'blue', 0.65: 'lime', 0.85: 'yellow', 1: 'red' }
+            }).addTo(map);
+
+
+            console.log("Map initialized successfully");
+            return true;
+        }
+
+        // マップコントロールの初期化を更新
+        function initializeMapControls() {
+            console.log("Initializing map controls");
+            document.getElementById('playButton').addEventListener('click', startAnimation);
+            document.getElementById('pauseButton').addEventListener('click', pauseAnimation);
+            document.getElementById('resetButton').addEventListener('click', resetAnimation);
+            document.getElementById('timeSlider').addEventListener('input', handleTimeSliderInput);
+            document.getElementById('showTrajectory').addEventListener('change', toggleTrajectory);
+
+            initializeTimeSlider();  // タイムスライダーの初期化を追加
+        }
+
+
+        // コントロールの初期化
+        function initializeControls() {
+            console.log("Initializing controls..."); // デバッグ用
+            const speciesSelect = document.getElementById('speciesSelect');
+            const yearSelect = document.getElementById('yearSelect');
+            const genderSelect = document.getElementById('genderSelect');
+
+            speciesSelect.addEventListener('change', handleFilterChange);
+            yearSelect.addEventListener('change', handleFilterChange);
+            genderSelect.addEventListener('change', handleFilterChange);
+
+            console.log("Controls initialized"); // デバッグ用
+        }
+
+        // フィルターの初期化関数を更新
+        function initializeFilters() {
+            console.log("Initializing filters...");
+            updateSpeciesFilter();
+            updateYearSelect();
+            updateGenderSelect();
+
+            document.getElementById('speciesSelect').addEventListener('change', handleFilterChange);
+            document.getElementById('yearSelect').addEventListener('change', handleFilterChange);
+            document.getElementById('genderSelect').addEventListener('change', handleFilterChange);
+
+            // 初期値を設定
+            currentSpecies = 'すべて';
+            currentYear = 'すべて';
+            currentGender = 'すべて';
+
+            // 初期フィルターを適用
+            applyFiltersAndUpdateDashboard();
+        }
+
+        // タイムスライダーの初期化
+        function initializeTimeSlider() {
+            const slider = document.getElementById('timeSlider');
+            if (filteredData.length > 0) {
+                slider.min = 0;
+                slider.max = filteredData.length - 1;
+                slider.value = filteredData.length - 1;  // 最新のデータポイントに設定
+                currentAnimationIndex = filteredData.length - 1;
+                updateTimeSlider();
+                updateCurrentDateDisplay();
+                updateMapMarkers();
+            } else {
+                slider.min = 0;
+                slider.max = 0;
+                slider.value = 0;
+                currentAnimationIndex = 0;
+            }
+        }
+
+
+        // handleFilterChange 関数を更新
+        function handleFilterChange() {
+            currentSpecies = document.getElementById('speciesSelect').value;
+            currentYear = document.getElementById('yearSelect').value;
+            currentGender = document.getElementById('genderSelect').value;
+            console.log("Filters changed:", currentSpecies, currentYear, currentGender);
+            applyFiltersAndUpdateDashboard();
+        }
+
+
+        // handleTimeSliderInput 関数を更新
+        function handleTimeSliderInput() {
+            clearTimeout(updateTimeout);
+            const slider = document.getElementById('timeSlider');
+            currentAnimationIndex = parseInt(slider.value);
+
+            // スライダーの値を即座に反映
+            updateCurrentDateDisplay();
+
+            // マーカーの更新を遅延させる
+            updateTimeout = setTimeout(() => {
+                updateMapMarkers();
+            }, 100); // 100ミリ秒の遅延
+        }
+
+        // handleFiles 関数を更新
+        function handleFiles(files) {
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const content = e.target.result;
+                    console.log("Raw file content:", content.substr(0, 200));
+                    processCSV(content, file.name);
+                };
+                reader.onerror = (e) => {
+                    console.error("FileReader error:", e);
+                    alert("ファイルの読み込み中にエラーが発生しました。");
+                };
+                reader.readAsText(file);
+            });
+        }
+
+        // allDataを日付順にソートする関数
+        function sortAllDataByDate() {
+            allData.sort((a, b) => a.date - b.date);
+            console.log("All data sorted by date");
+        }
+
+        function processCSV(csvContent, fileName) {
+            Papa.parse(csvContent, {
+                header: false,
+                skipEmptyLines: true,
+                complete: (results) => {
+                    console.log("Parsed CSV data:", results.data.slice(0, 5));
+                    const processedData = parseCSVResults(results);
+                    if (processedData.length === 0) {
+                        console.warn("No valid data found in CSV");
+                        alert("CSVファイルから有効なデータを読み取ることができませんでした。ファイルの形式を確認してください。");
+                        return;
+                    }
+                    const newData = preprocessData(processedData);
+
+                    // 新しい獣種をspeciesListに追加
+                    newData.forEach(data => {
+                        addNewSpecies(data.species, []); // 既存の種は無視される
+                    });
+
+                    mergeData(newData);
+                    sortAllDataByDate();
+                    loadedFiles.push({ name: fileName, dataLength: newData.length });
+                    updateFileList();
+                    updateSpeciesSelect(); // 獣種選択を更新
+                    updateSpeciesFilter(); // 獣種フィルターを更新
+                    updateYearComparisonSpeciesSelect(); // 年比較の獣種選択を更新
+                    finalize();
+                    console.log("CSV processing and finalization complete");
+                },
+                error: (error) => {
+                    console.error('Error parsing CSV:', error);
+                    alert("CSVファイルの解析中にエラーが発生しました: " + error.message);
+                }
+            });
+        }
+
+
+        // ファイルリストを更新する関数を更新
+        function updateFileList() {
+            const fileList = document.getElementById('fileList');
+            fileList.innerHTML = '';
+            loadedFiles.forEach((file, index) => {
+                const li = document.createElement('li');
+                li.textContent = `${file.name} (${file.dataLength} レコード)`;
+
+                const previewButton = document.createElement('button');
+                previewButton.textContent = 'プレビュー';
+                previewButton.onclick = () => previewFile(index);
+
+                const editButton = document.createElement('button');
+                editButton.textContent = '編集';
+                editButton.onclick = () => editFile(index);
+
+                const deleteButton = document.createElement('button');
+                deleteButton.textContent = '削除';
+                deleteButton.onclick = () => deleteFile(index);
+
+                li.appendChild(previewButton);
+                li.appendChild(editButton);
+                li.appendChild(deleteButton);
+                fileList.appendChild(li);
+            });
+        }
+
+        // ファイルをプレビューする関数
+        function previewFile(index) {
+            const file = loadedFiles[index];
+            const previewTable = document.getElementById('previewTable');
+            previewTable.innerHTML = '';
+
+            // ヘッダー行を作成
+            const headerRow = previewTable.insertRow();
+            ['日付', '鳥獣種', '性別', '体長', '捕獲場所'].forEach(header => {
+                const th = document.createElement('th');
+                th.textContent = header;
+                headerRow.appendChild(th);
+            });
+
+            // データ行を作成（最初の10行のみ）
+            const startIndex = index === -1 ? allData.length - file.dataLength : allData.length - file.dataLength;
+            const endIndex = Math.min(startIndex + 10, allData.length);
+            for (let i = startIndex; i < endIndex; i++) {
+                const dataRow = previewTable.insertRow();
+                const data = allData[i];
+                [data.date.toLocaleDateString(), data.species, data.gender, data.length, `${data.latitude}, ${data.longitude}`].forEach(cellData => {
+                    const cell = dataRow.insertCell();
+                    cell.textContent = cellData;
+                });
+            }
+
+            document.getElementById('csvPreview').style.display = 'block';
+        }
+
+        // ファイルを削除する関数
+        function deleteFile(index) {
+            if (confirm(`${loadedFiles[index].name} を削除してもよろしいですか？`)) {
+                // 削除するファイルのデータ数を取得
+                const removedDataLength = loadedFiles[index].dataLength;
+
+                // ファイルリストから削除
+                loadedFiles.splice(index, 1);
+
+                // allData から対応するデータを削除
+                allData.splice(-removedDataLength);
+
+                updateFileList();
+                finalize();
+            }
+        }
+
+        // ファイルを編集する関数
+        function editFile(index) {
+            currentEditIndex = index;
+            const file = loadedFiles[index];
+            const editTable = document.getElementById('editTable');
+            editTable.innerHTML = '';
+
+            // ヘッダー行を作成
+            const headerRow = editTable.insertRow();
+            ['日付', '鳥獣種', '性別', '体長', '捕獲場所'].forEach(header => {
+                const th = document.createElement('th');
+                th.textContent = header;
+                headerRow.appendChild(th);
+            });
+
+            // データ行を作成
+            const startIndex = index === -1 ? allData.length - file.dataLength : allData.length - file.dataLength;
+            const endIndex = allData.length;
+            for (let i = startIndex; i < endIndex; i++) {
+                const dataRow = editTable.insertRow();
+                const data = allData[i];
+                [
+                    data.date.toISOString().split('T')[0],
+                    data.species,
+                    data.gender,
+                    data.length,
+                    `${data.latitude}, ${data.longitude}`
+                ].forEach((cellData, cellIndex) => {
+                    const cell = dataRow.insertCell();
+                    const input = document.createElement('input');
+                    input.type = cellIndex === 0 ? 'date' : 'text';
+                    input.value = cellData;
+                    cell.appendChild(input);
+                });
+            }
+
+            document.getElementById('dataEditor').style.display = 'block';
+        }
+
+        // 編集されたデータを保存する関数
+        function saveEditedData() {
+            const editTable = document.getElementById('editTable');
+            const rows = editTable.rows;
+            const startIndex = currentEditIndex === -1 ? allData.length - loadedFiles[loadedFiles.length - 1].dataLength : allData.length - loadedFiles[currentEditIndex].dataLength;
+
+            for (let i = 1; i < rows.length; i++) {
+                const inputs = rows[i].getElementsByTagName('input');
+                const newData = {
+                    date: new Date(inputs[0].value),
+                    species: inputs[1].value,
+                    gender: inputs[2].value,
+                    length: parseFloat(inputs[3].value),
+                    latitude: parseFloat(inputs[4].value.split(',')[0]),
+                    longitude: parseFloat(inputs[4].value.split(',')[1])
+                };
+                allData[startIndex + i - 1] = newData;
+            }
+
+            document.getElementById('dataEditor').style.display = 'none';
+            applyFiltersAndUpdateDashboard();
+
+        }
+
+        // 編集をキャンセルする関数
+        function cancelEdit() {
+            document.getElementById('dataEditor').style.display = 'none';
+        }
+
+        // すべてのデータを再処理する関数
+        function reprocessAllData() {
+            allData = [];
+            loadedFiles.forEach(fileName => {
+                // ここでファイルを再読み込みして処理する必要があります
+                // 実際の実装では、ファイルの内容を保存しておく必要があるかもしれません
+            });
+            finalize();
+        }
+
+
+        // フィルターの適用関数を更新
+        function applyFilters() {
+            filteredData = allData.filter(row => {
+                const speciesMatch = currentSpecies === 'すべて' || normalizeSpecies(row.species) === currentSpecies;
+                const yearMatch = currentYear === 'すべて' || row.date.getFullYear().toString() === currentYear;
+                const genderMatch = currentGender === 'すべて' || row.gender === currentGender;
+                return speciesMatch && yearMatch && genderMatch;
+            });
+            console.log("Filters applied, filtered data length:", filteredData.length);
+        }
+
+        function applyFiltersAndUpdateDashboard() {
+            console.log("Applying filters and updating dashboard");
+            applyFilters();
+            updateCharts(filteredData);
+            updateMap(filteredData);
+            updateStatistics(filteredData);
+            initializeTimeSlider();  // タイムスライダーを再初期化
+            updateMapMarkers();  // マップマーカーを更新
+            console.log("Dashboard updated with filtered data:", filteredData.length);
+        }
+
+        // データの前処理を行う関数
+        function preprocessData(data) {
+            return data.map(row => ({
+                ...row,
+                species: normalizeSpecies(row.species),
+                gender: normalizeGender(row.gender),
+                date: new Date(row.date)
+            }));
+        }
+
+        // mergeData関数を更新
+        function mergeData(newData) {
+            const uniqueKey = item => `${item.date.toISOString()}-${item.species}-${item.gender}-${item.length}-${item.latitude}-${item.longitude}`;
+            const existingKeys = new Set(allData.map(uniqueKey));
+
+            newData.forEach(item => {
+                const key = uniqueKey(item);
+                if (!existingKeys.has(key)) {
+                    allData.push(item);
+                    existingKeys.add(key);
+                }
+            });
+
+            sortAllDataByDate(); // マージ後にソート
+        }
+
+        // CSVの解析結果をパースする関数
+        function parseCSVResults(results) {
+            const headerRow = results.data[0];
+            const dataStartIndex = headerRow.some(cell => cell.includes('日付')) ? 1 : 0;
+            const columnIndices = {
+                date: headerRow.findIndex(cell => cell.includes('日付')),
+                species: headerRow.findIndex(cell =>
+                    cell.includes('鳥獣種') || cell.includes('獣種') || cell.includes('種類')),
+                gender: headerRow.findIndex(cell => cell.includes('性別')),
+                length: headerRow.findIndex(cell => cell.includes('体長')),
+                location: headerRow.findIndex(cell => cell.includes('捕獲場所') || cell.includes('緯度'))
+            };
+            return results.data.slice(dataStartIndex).map(row => cleanupRow(row, columnIndices)).filter(row => row.date && row.species);
+        }
+
+        // フィルターの更新
+        function updateFilters() {
+            updateSpeciesSelect();
+            updateYearSelect();
+            updateGenderSelect();
+        }
+
+        function selectNearestWeatherStation() {
+            console.log("Selecting nearest weather station");
+            if (allData.length === 0) {
+                console.warn('捕獲データがありません。観測所を選択できません。');
+                document.getElementById('selectedWeatherStation').textContent = '選択不可（データなし）';
+                return;
+            }
+
+            // すべての捕獲データの平均位置を計算
+            const avgLat = allData.reduce((sum, data) => sum + (data.latitude || 0), 0) / allData.length;
+            const avgLon = allData.reduce((sum, data) => sum + (data.longitude || 0), 0) / allData.length;
+
+            console.log("Average position:", avgLat, avgLon);
+
+            if (isNaN(avgLat) || isNaN(avgLon)) {
+                console.warn('有効な位置データがありません。観測所を選択できません。');
+                document.getElementById('selectedWeatherStation').textContent = '選択不可（位置データなし）';
+                return;
+            }
+
+            // 最も近い観測所を見つける
+            let nearestStation = null;
+            let shortestDistance = Infinity;
+
+            weatherStations.forEach(station => {
+                const distance = calculateDistance(avgLat, avgLon, station.lat, station.lon);
+                if (distance < shortestDistance) {
+                    shortestDistance = distance;
+                    nearestStation = station;
+                }
+            });
+
+            if (nearestStation) {
+                selectedWeatherStation = nearestStation;
+                console.log("Selected weather station:", selectedWeatherStation.name);
+                document.getElementById('selectedWeatherStation').textContent = selectedWeatherStation.name;
+            } else {
+                console.warn('最寄りの観測所が見つかりません。');
+                document.getElementById('selectedWeatherStation').textContent = '選択不可（観測所なし）';
+            }
+        }
+
+        // 2点間の距離を計算する関数（ヒュベニの公式を使用）
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // 地球の半径 (km)
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c;
+        }
+
+        // 気象データを取得する関数
+        async function fetchWeatherData() {
+            if (!selectedWeatherStation) {
+                alert('観測所が選択されていません。');
+                return;
+            }
+
+            const startDate = new Date(Math.min(...allData.map(d => d.date))).toISOString().split('T')[0];
+            const endDate = new Date(Math.max(...allData.map(d => d.date))).toISOString().split('T')[0];
+
+            try {
+                const response = await axios.get(`https://www.data.jma.go.jp/obd/stats/etrn/view/daily_s1.php`, {
+                    params: {
+                        prec_no: selectedWeatherStation.id.substring(0, 2),
+                        block_no: selectedWeatherStation.id.substring(2),
+                        year: startDate.split('-')[0],
+                        month: startDate.split('-')[1],
+                        day: startDate.split('-')[2],
+                        view: 'p1'
+                    }
+                });
+
+                const weatherData = parseWeatherData(response.data, startDate, endDate);
+                const correlatedData = correlateWeatherAndCaptureData(weatherData);
+                updateWeatherCorrelationChart(correlatedData);
+            } catch (error) {
+                console.error('Error fetching weather data:', error);
+                alert('気象データの取得に失敗しました。');
+            }
+        }
+
+        // 気象データをパースする関数（簡易的な実装）
+        function parseWeatherData(htmlData, startDate, endDate) {
+            // 注意: この実装は簡易的なものです。実際にはより堅牢なHTMLパーシングが必要です。
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(htmlData, 'text/html');
+            const rows = doc.querySelectorAll('table.data2_s tr');
+
+            const weatherData = [];
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                if (cells.length >= 4) {
+                    const date = cells[0].textContent.trim();
+                    const temperature = parseFloat(cells[3].textContent.trim());
+                    const precipitation = parseFloat(cells[3].textContent.trim());
+                    if (!isNaN(temperature) && !isNaN(precipitation)) {
+                        weatherData.push({ date, temperature, precipitation });
+                    }
+                }
+            });
+
+            return weatherData;
+        }
+
+        // 気象データと捕獲データを関連付ける関数
+        function correlateWeatherAndCaptureData(weatherData) {
+            const correlatedData = [];
+            allData.forEach(captureData => {
+                const captureDate = captureData.date.toISOString().split('T')[0];
+                const matchingWeatherData = weatherData.find(w => w.date === captureDate);
+                if (matchingWeatherData) {
+                    correlatedData.push({
+                        date: captureData.date,
+                        captures: 1,
+                        temperature: matchingWeatherData.temperature,
+                        precipitation: matchingWeatherData.precipitation
+                    });
+                }
+            });
+            return correlatedData;
+        }
+
+        // 気象データと捕獲データの相関チャートを更新する関数
+        function updateWeatherCorrelationChart(correlatedData) {
+            const ctx = document.getElementById('weatherCorrelationChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: '気温と捕獲数の相関',
+                        data: correlatedData.map(d => ({ x: d.temperature, y: d.captures })),
+                        backgroundColor: 'rgba(255, 99, 132, 0.5)'
+                    }]
+                },
+                options: {
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            position: 'bottom',
+                            title: {
+                                display: true,
+                                text: '気温 (°C)'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: '捕獲数'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function clearYearComparison() {
+            // 年比較チャートをクリア
+            const ctx1 = document.getElementById('yearComparisonChart1').getContext('2d');
+            const ctx2 = document.getElementById('yearComparisonChart2').getContext('2d');
+            if (ctx1.chart) ctx1.chart.destroy();
+            if (ctx2.chart) ctx2.chart.destroy();
+
+            // 年選択をリセット
+            document.getElementById('yearSelect1').selectedIndex = 0;
+            document.getElementById('yearSelect2').selectedIndex = 0;
+
+            // 獣種と性別フィルターをリセット
+            document.getElementById('yearComparisonSpeciesSelect').value = 'すべて';
+            document.getElementById('yearComparisonGenderSelect').value = 'すべて';
+
+            // 比較コンテナを非表示にする
+            document.querySelector('.comparison-container').style.display = 'none';
+        }
+
+        function compareYears() {
+            const year1 = document.getElementById('yearSelect1').value;
+            const year2 = document.getElementById('yearSelect2').value;
+            const species = document.getElementById('yearComparisonSpeciesSelect').value;
+            const gender = document.getElementById('yearComparisonGenderSelect').value;
+
+            if (!year1 || !year2) {
+                alert('両方の年を選択してください。');
+                return;
+            }
+
+            const filteredData1 = filterDataForYearComparison(allData, year1, species, gender);
+            const filteredData2 = filterDataForYearComparison(allData, year2, species, gender);
+
+            updateYearComparisonChart('yearComparisonChart1', filteredData1, year1);
+            updateYearComparisonChart('yearComparisonChart2', filteredData2, year2);
+
+            // 比較コンテナを表示する
+            document.querySelector('.comparison-container').style.display = 'flex';
+        }
+
+        function filterDataForYearComparison(data, year, species, gender) {
+            return data.filter(row => {
+                const yearMatch = row.date.getFullYear().toString() === year;
+                const speciesMatch = species === 'すべて' || row.species === species;
+                const genderMatch = gender === 'すべて' || row.gender === gender;
+                return yearMatch && speciesMatch && genderMatch;
+            });
+        }
+
+        function updateYearComparisonSpeciesSelect() {
+            console.log("Updating year comparison species select");
+            const speciesSelect = document.getElementById('yearComparisonSpeciesSelect');
+            speciesSelect.innerHTML = '<option value="すべて">すべて</option>';
+
+            // speciesListを使用して獣種を取得
+            const uniqueSpecies = [...new Set(speciesList.map(s => s.name))];
+            uniqueSpecies.sort().forEach(species => {
+                const option = document.createElement('option');
+                option.value = species;
+                option.textContent = species;
+                speciesSelect.appendChild(option);
+            });
+
+            console.log(`Updated year comparison species select with ${uniqueSpecies.length} unique species`);
+        }
+
+
+        function initializeYearComparison() {
+            console.log("Initializing year comparison");
+            const yearSelect1 = document.getElementById('yearSelect1');
+            const yearSelect2 = document.getElementById('yearSelect2');
+
+            // まず既存のオプションをクリア
+            yearSelect1.innerHTML = '';
+            yearSelect2.innerHTML = '';
+
+            const years = [...new Set(allData.map(row => row.date.getFullYear()))].sort();
+
+            console.log("Available years:", years);
+
+            // "選択してください" オプションを追加
+            const defaultOption1 = document.createElement('option');
+            defaultOption1.value = "";
+            defaultOption1.textContent = "選択してください";
+            yearSelect1.appendChild(defaultOption1);
+
+            const defaultOption2 = document.createElement('option');
+            defaultOption2.value = "";
+            defaultOption2.textContent = "選択してください";
+            yearSelect2.appendChild(defaultOption2);
+
+            years.forEach(year => {
+                const option1 = document.createElement('option');
+                option1.value = year;
+                option1.textContent = year;
+                yearSelect1.appendChild(option1);
+
+                const option2 = document.createElement('option');
+                option2.value = year;
+                option2.textContent = year;
+                yearSelect2.appendChild(option2);
+            });
+
+            // 獣種選択肢を更新
+            updateYearComparisonSpeciesSelect();
+
+            // イベントリスナーを追加
+            document.getElementById('compareYearsButton').addEventListener('click', compareYears);
+            document.getElementById('clearYearComparisonButton').addEventListener('click', clearYearComparison);
+
+            console.log("Year comparison initialized");
+        }
+
+        function updateYearComparisonChart(chartId, data, year) {
+            const ctx = document.getElementById(chartId).getContext('2d');
+
+            // 既存のチャートがあれば破棄
+            if (ctx.chart) {
+                ctx.chart.destroy();
+            }
+
+            const monthlyData = Array(12).fill(0);
+
+            data.forEach(row => {
+                const month = row.date.getMonth();
+                monthlyData[month]++;
+            });
+
+            ctx.chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
+                    datasets: [{
+                        label: `${year}年の月別捕獲数`,
+                        data: monthlyData,
+                        backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                        borderColor: 'rgb(75, 192, 192)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '捕獲数'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateSpeciesList(newSpecies, aliases) {
+            console.log("Updating species list with:", newSpecies);
+            if (!speciesList.some(species => species.name === newSpecies)) {
+                speciesList.push({ name: newSpecies, aliases: aliases });
+                updateSpeciesSelect();
+                updateSpeciesFilter();
+                updateYearComparisonSpeciesSelect();
+                console.log("Species list updated, new count:", speciesList.length);
+            } else {
+                console.log("Species already exists:", newSpecies);
+            }
+        }
+
+        // 獣種フィルターの更新関数を修正
+        function updateSpeciesFilter() {
+            const speciesFilter = document.getElementById('speciesSelect');
+            const currentValue = speciesFilter.value;
+
+            speciesFilter.innerHTML = '<option value="すべて">すべて</option>';
+            speciesList.forEach(species => {
+                const option = document.createElement('option');
+                option.value = species.name;
+                option.textContent = species.name;
+                speciesFilter.appendChild(option);
+            });
+
+            if (speciesList.some(species => species.name === currentValue)) {
+                speciesFilter.value = currentValue;
+            } else {
+                speciesFilter.value = 'すべて';
+            }
+
+            console.log("Species filter options updated");
+        }
+
+        // 獣種セレクトの更新関数を修正
+        function updateSpeciesSelect() {
+            const speciesSelect = document.getElementById('newSpecies');
+            speciesSelect.innerHTML = '<option value="">獣種を選択</option>';
+            speciesList.forEach(species => {
+                const option = document.createElement('option');
+                option.value = species.name;
+                option.textContent = species.name;
+                speciesSelect.appendChild(option);
+            });
+            console.log("Species select options updated");
+        }
+
+        // 年セレクトの更新
+        function updateYearSelect() {
+            const yearSelect = document.getElementById('yearSelect');
+            const years = ['すべて', ...new Set(allData.map(row => row.date.getFullYear()))].sort();
+            yearSelect.innerHTML = years.map(y => `<option value="${y}">${y === 'すべて' ? 'すべて' : y}</option>`).join('');
+            yearSelect.value = 'すべて';  // デフォルト値を 'すべて' に設定
+            console.log("Year options:", years);
+        }
+
+        // 性別セレクトの更新
+        function updateGenderSelect() {
+            const genderSelect = document.getElementById('genderSelect');
+            const genders = ['すべて', 'オス', 'メス', '不明'];
+            genderSelect.innerHTML = genders.map(g => `<option value="${g}">${g}</option>`).join('');
+            genderSelect.value = currentGender;
+            console.log("Gender options:", genders); // デバッグ用
+        }
+
+
+        function updateCharts(data) {
+            console.log("Updating charts with data:", data.slice(0, 5));
+
+            if (!data || data.length === 0) {
+                console.warn("No data available for chart update");
+                return;
+            }
+
+            try {
+                updateSpeciesChart(data);
+                console.log("Species chart updated");
+
+                updateMonthlyChart(data);
+                console.log("Monthly chart updated");
+
+                updateGenderChart(data);
+                console.log("Gender chart updated");
+
+                updateSpeciesGenderChart(data);
+                console.log("Species-gender chart updated");
+
+                updateSeasonalChart(data);
+                console.log("Seasonal chart updated");
+
+                updateLengthDistributionChart(data);
+                console.log("Length distribution chart updated");
+
+                console.log("All charts updated successfully");
+            } catch (error) {
+                console.error("Error updating charts:", error);
+            }
+        }
+
+        // 種別捕獲数チャートの更新
+        function updateSpeciesChart(data) {
+            console.log("Updating species chart with data:", data.slice(0, 5));
+            const speciesCounts = data.reduce((acc, row) => {
+                const normalizedSpecies = normalizeSpecies(row.species);
+                acc[normalizedSpecies] = (acc[normalizedSpecies] || 0) + 1;
+                return acc;
+            }, {});
+
+            speciesChart.data.labels = Object.keys(speciesCounts);
+            speciesChart.data.datasets[0].data = Object.values(speciesCounts);
+            speciesChart.update();
+            console.log("Species chart updated:", speciesCounts);
+        }
+
+        // 月別捕獲数推移チャートの更新
+        function updateMonthlyChart(data) {
+            const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+            const monthlyCounts = Array(12).fill(0);
+
+            data.forEach(row => {
+                const month = row.date.getMonth();
+                monthlyCounts[month]++;
+            });
+
+            monthlyChart.data.labels = monthNames;
+            monthlyChart.data.datasets[0].data = monthlyCounts;
+            monthlyChart.update();
+            console.log("Monthly chart updated:", monthlyCounts);
+        }
+
+        // 性別ごとの捕獲数チャートの更新
+        function updateGenderChart(data) {
+            const genderCounts = data.reduce((acc, row) => {
+                acc[row.gender] = (acc[row.gender] || 0) + 1;
+                return acc;
+            }, { オス: 0, メス: 0, 不明: 0 });
+
+            genderChart.data.datasets[0].data = [genderCounts['オス'], genderCounts['メス'], genderCounts['不明']];
+            genderChart.update();
+            console.log("Gender chart updated:", genderCounts);
+        }
+
+        // 種別・性別捕獲数チャートの更新
+        function updateSpeciesGenderChart(data) {
+            const speciesGenderData = data.reduce((acc, row) => {
+                if (!acc[row.species]) acc[row.species] = { オス: 0, メス: 0, 不明: 0 };
+                acc[row.species][row.gender]++;
+                return acc;
+            }, {});
+
+            speciesGenderChart.data.labels = Object.keys(speciesGenderData);
+            speciesGenderChart.data.datasets[0].data = Object.values(speciesGenderData).map(d => d['オス']);
+            speciesGenderChart.data.datasets[1].data = Object.values(speciesGenderData).map(d => d['メス']);
+            speciesGenderChart.data.datasets[2].data = Object.values(speciesGenderData).map(d => d['不明']);
+            speciesGenderChart.update();
+            console.log("Species-gender chart updated:", speciesGenderData);
+        }
+
+        // 季節別捕獲数チャートの更新
+        function updateSeasonalChart(data) {
+            const seasonalCounts = data.reduce((acc, row) => {
+                const season = getSeason(row.date.getMonth() + 1);
+                acc[season]++;
+                return acc;
+            }, { 春: 0, 夏: 0, 秋: 0, 冬: 0 });
+
+            seasonalChart.data.datasets[0].data = Object.values(seasonalCounts);
+            seasonalChart.update();
+            console.log("Seasonal chart updated:", seasonalCounts);
+        }
+
+        // 体長分布チャートの更新
+        function updateLengthDistributionChart(data) {
+            const lengths = data.filter(row => row.length != null).map(row => row.length);
+            const binSize = 10;
+            const bins = {};
+            lengths.forEach(length => {
+                const binIndex = Math.floor(length / binSize) * binSize;
+                bins[binIndex] = (bins[binIndex] || 0) + 1;
+            });
+
+            lengthDistributionChart.data.labels = Object.keys(bins).map(bin => `${bin}-${parseInt(bin) + binSize}cm`);
+            lengthDistributionChart.data.datasets[0].data = Object.values(bins);
+            lengthDistributionChart.update();
+            console.log("Length distribution chart updated:", bins);
+        }
+
+        // 月から季節を取得する関数
+        function getSeason(month) {
+            if (month >= 3 && month <= 5) return '春';
+            if (month >= 6 && month <= 8) return '夏';
+            if (month >= 9 && month <= 11) return '秋';
+            return '冬';
+        }
+
+        function getSpeciesIcon(species) {
+            const normalizedSpecies = normalizeSpecies(species);
+            if (!speciesIcons[normalizedSpecies]) {
+                // 新しい獣種に色を割り当てる
+                speciesIcons[normalizedSpecies] = `https://cdn.jsdelivr.net/gh/pointhi/leaflet-color-markers@master/img/marker-icon-2x-${availableColors[colorIndex]}.png`;
+                colorIndex = (colorIndex + 1) % availableColors.length;
+            }
+            const iconUrl = speciesIcons[normalizedSpecies];
+            return L.icon({
+                iconUrl: iconUrl,
+                iconSize: [25, 41],
+                iconAnchor: [12, 41],
+                popupAnchor: [1, -34],
+                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+                shadowSize: [41, 41]
+            });
+        }
+
+        // マップ更新関数を修正
+        function updateMap(data) {
+            console.log("Updating map with data:", data ? data.length : 'No data');
+            if (!map) {
+                console.error("Map is not initialized");
+                return;
+            }
+
+            if (!data || data.length === 0) {
+                console.warn("No data provided for map update");
+                return;
+            }
+
+            clearAllMarkers();
+            updateMapMarkers(data);
+
+            if (mapMarkers.length > 0) {
+                const bounds = L.latLngBounds(mapMarkers.map(marker => marker.getLatLng()));
+                map.fitBounds(bounds);
+            } else {
+                console.log("No markers to display. Keeping current map view.");
+            }
+
+            updateHeatmap(data);
+        }
+
+
+        // 軌跡の更新を行う新しい関数
+        function updateTrajectoryIfNeeded(points) {
+            if (showTrajectory) {
+                if (trajectoryLine) {
+                    map.removeLayer(trajectoryLine);
+                }
+                trajectoryLine = L.polyline(points, { color: 'red', weight: 2, opacity: 0.5 }).addTo(map);
+            } else if (trajectoryLine) {
+                map.removeLayer(trajectoryLine);
+                trajectoryLine = null;
+            }
+        }
+
+        function updateTrajectory() {
+            const trajectoryPoints = filteredData
+                .slice(0, currentAnimationIndex + 1)
+                .filter(d => d.latitude && d.longitude)
+                .map(d => [d.latitude, d.longitude]);
+
+            if (showTrajectory) {
+                if (trajectoryLine) {
+                    trajectoryLine.setLatLngs(trajectoryPoints);
+                } else {
+                    trajectoryLine = L.polyline(trajectoryPoints, { color: 'red', weight: 2, opacity: 0.5 }).addTo(map);
+                }
+            } else if (trajectoryLine) {
+                map.removeLayer(trajectoryLine);
+                trajectoryLine = null;
+            }
+        }
+
+        function toggleTrajectory() {
+            showTrajectory = document.getElementById('showTrajectory').checked;
+            updateTrajectory();
+        }
+
+        // タイムスライダーの更新
+        function updateTimeSlider() {
+            const slider = document.getElementById('timeSlider');
+            slider.value = currentAnimationIndex;
+            slider.max = filteredData.length - 1;
+            console.log("Time slider updated:", slider.value);
+        }
+
+        function updateCurrentDateDisplay() {
+            const currentDate = document.getElementById('currentDate');
+            if (filteredData.length > 0 && currentAnimationIndex >= 0 && currentAnimationIndex < filteredData.length) {
+                currentDate.textContent = filteredData[currentAnimationIndex].date.toLocaleDateString();
+                console.log("Current date updated:", currentDate.textContent);
+            } else {
+                currentDate.textContent = "データなし";
+                console.log("No data available for current date display");
+            }
+        }
+
+        // スライダーからアニメーションを更新
+        function updateAnimationFromSlider() {
+            const slider = document.getElementById('timeSlider');
+            currentAnimationIndex = parseInt(slider.value);
+            updateMapMarkerVisibility();
+            updateCurrentDateDisplay();
+        }
+
+        function updateStatistics() {
+            document.getElementById('totalCaptures').textContent = allData.length;
+
+            const genderCounts = allData.reduce((acc, row) => {
+                acc[row.gender] = (acc[row.gender] || 0) + 1;
+                return acc;
+            }, {});
+            document.getElementById('maleCaptures').textContent = genderCounts['オス'] || 0;
+            document.getElementById('femaleCaptures').textContent = genderCounts['メス'] || 0;
+            document.getElementById('unknownGenderCaptures').textContent = genderCounts['不明'] || 0;
+
+            const validLengths = allData.filter(row => row.length != null).map(row => row.length);
+            const averageLength = validLengths.length > 0
+                ? validLengths.reduce((sum, length) => sum + length, 0) / validLengths.length
+                : 0;
+            document.getElementById('averageLength').textContent = averageLength.toFixed(2);
+
+            const speciesCounts = allData.reduce((acc, row) => {
+                acc[row.species] = (acc[row.species] || 0) + 1;
+                return acc;
+            }, {});
+            const mostCaptured = Object.entries(speciesCounts).reduce((a, b) => a[1] > b[1] ? a : b, ['', 0])[0];
+            document.getElementById('mostCapturedSpecies').textContent = mostCaptured || '該当なし';
+        }
+
+        // 再生ボタンのクリックハンドラー
+        function handlePlayButtonClick() {
+            console.log("Play button clicked");
+            startAnimation();
+        }
+
+        // 一時停止ボタンのクリックハンドラー
+        function handlePauseButtonClick() {
+            console.log("Pause button clicked");
+            pauseAnimation();
+        }
+
+        // リセットボタンのクリックハンドラー
+        function handleResetButtonClick() {
+            console.log("Reset button clicked");
+            resetAnimation();
+        }
+
+        async function startAnimation() {
+            console.log("startAnimation called");
+            if (isPlaying || isClearing) return;
+            isPlaying = true;
+            if (animationInterval) clearInterval(animationInterval);
+            await clearAllMarkers();
+            currentAnimationIndex = 0;
+            updateCurrentDateDisplay(); // アニメーション開始時に日付表示を初期化
+            animationInterval = setInterval(updateAnimation, 1000); // 1秒ごとに更新
+            console.log("Animation started, interval set");
+        }
+
+        // アニメーションの一時停止
+        function pauseAnimation() {
+            isPlaying = false;
+            if (animationInterval) clearInterval(animationInterval);
+            console.log("Animation paused");
+        }
+
+        // アニメーションのリセット関数を更新
+        function resetAnimation() {
+            pauseAnimation();
+            initializeTimeSlider();  // タイムスライダーを再初期化
+            updateMapMarkerVisibility();
+            updateCurrentDateDisplay();
+            console.log("Animation reset to latest data point");
+        }
+
+        async function updateAnimation() {
+            console.log("Updating animation, current index:", currentAnimationIndex);
+            if (filteredData.length === 0) {
+                console.log("No data to animate");
+                pauseAnimation();
+                return;
+            }
+            if (currentAnimationIndex < filteredData.length - 1) {
+                currentAnimationIndex++;
+                await updateMapMarkers();
+                updateTimeSlider();
+                updateCurrentDateDisplay(); // 日付表示を更新
+            } else {
+                console.log("Animation reached end");
+                pauseAnimation();
+            }
+        }
+
+
+        // すべてのマーカーをクリア
+        function clearAllMarkers() {
+            mapMarkers.forEach(marker => map.removeLayer(marker));
+            mapMarkers = [];
+            if (trajectoryLine) {
+                map.removeLayer(trajectoryLine);
+                trajectoryLine = null;
+            }
+        }
+
+        // マップマーカーの更新関数を修正
+        function updateMapMarkers(data) {
+            console.log("Updating map markers with data:", data ? data.length : 'No data');
+            if (isClearing || !data || data.length === 0) {
+                console.warn("Cannot update map markers: clearing in progress or no data available");
+                return;
+            }
+
+            clearAllMarkers();
+
+            for (let i = 0; i <= currentAnimationIndex && i < data.length; i++) {
+                const item = data[i];
+                if (item && item.latitude && item.longitude) {
+                    const icon = getSpeciesIcon(item.species);
+                    const marker = L.marker([item.latitude, item.longitude], {
+                        icon: icon,
+                    }).addTo(map)
+                        .bindPopup(createPopupContent(item));
+                    mapMarkers.push(marker);
+                }
+            }
+
+            updateHeatmap(data.slice(0, currentAnimationIndex + 1));
+
+            if (mapMarkers.length > 0) {
+                const lastVisibleMarker = mapMarkers[mapMarkers.length - 1];
+                map.setView(lastVisibleMarker.getLatLng(), map.getZoom());
+            }
+
+            console.log("Map markers updated, count:", mapMarkers.length);
+        }
+
+        // ポップアップの内容を生成する新しい関数
+        function createPopupContent(data) {
+            let content = `<strong>${data.date.toLocaleDateString()}</strong><br>`;
+            content += `種類: ${data.species}<br>`;
+            content += `性別: ${data.gender}<br>`;
+            if (data.length !== null && data.length !== undefined) {
+                content += `体長: ${data.length} cm<br>`;
+            } else {
+                content += `体長: 記録なし<br>`;
+            }
+            return content;
+        }
+
+        // ヒートマップの更新関数を修正
+        function updateHeatmap(data) {
+            console.log("Updating heatmap with data:", data ? data.length : 'No data');
+            if (densityHeatmap && data && data.length > 0) {
+                const heatmapPoints = normalizeHeatmapData(data);
+                densityHeatmap.setLatLngs(heatmapPoints);
+            } else {
+                console.warn("Cannot update heatmap: densityHeatmap not initialized or no data available");
+            }
+        }
+
+        // ヒートマップデータを正規化する関数を修正
+        function normalizeHeatmapData(data) {
+            if (!data || data.length === 0) {
+                console.warn("No data provided for heatmap normalization");
+                return [];
+            }
+
+            const filteredData = data.filter(d => d && d.latitude && d.longitude);
+            if (filteredData.length === 0) {
+                console.warn("No valid coordinates found in the data for heatmap");
+                return [];
+            }
+
+            // 各位置でのデータ点の数をカウント
+            const locationCounts = {};
+            filteredData.forEach(d => {
+                const key = `${d.latitude},${d.longitude}`;
+                locationCounts[key] = (locationCounts[key] || 0) + 1;
+            });
+
+            // 最大カウントを見つける
+            const maxCount = Math.max(...Object.values(locationCounts));
+
+            // データを正規化
+            const normalizedData = Object.entries(locationCounts).map(([key, count]) => {
+                const [lat, lng] = key.split(',').map(Number);
+                const normalizedIntensity = count / maxCount;
+                return [lat, lng, normalizedIntensity];
+            });
+
+            return normalizedData;
+        }
+
+
+        // マーカーの可視性を更新
+        function updateMapMarkerVisibility() {
+            console.log("Updating marker visibility");
+            mapMarkers.forEach((marker, index) => {
+                const shouldBeVisible = index <= currentAnimationIndex;
+                marker.setOpacity(shouldBeVisible ? 1 : 0);
+            });
+        }
+
+
+        // データの前処理を行う関数
+        function preprocessData(data) {
+            return data.map(row => ({
+                ...row,
+                species: normalizeSpecies(row.species),
+                date: new Date(row.date)
+            }));
+        }
+
+        // 行のクリーンアップ
+        function cleanupRow(row, indices) {
+            const cleanedRow = {};
+            if (row[indices.date]) {
+                const [year, month, day] = row[indices.date].split('/').map(num => num.padStart(2, '0'));
+                cleanedRow.date = new Date(`${year}-${month}-${day}`);
+            }
+            cleanedRow.species = normalizeSpecies(row[indices.species] ? row[indices.species].trim() : '不明');
+            cleanedRow.gender = normalizeGender(row[indices.gender]);
+            if (row[indices.length]) {
+                const length = row[indices.length].replace(/[㎝cm]/gi, '').trim();
+                cleanedRow.length = length ? parseFloat(length) : null;
+            }
+            const locationField = row[indices.location];
+            if (locationField) {
+                const coords = locationField.replace(/[""]/g, '').split(',').map(coord => parseFloat(coord.trim()));
+                if (coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
+                    cleanedRow.latitude = coords[0];
+                    cleanedRow.longitude = coords[1];
+                }
+            }
+            return cleanedRow;
+        }
+
+        // normalizeSpecies 関数を更新
+        function normalizeSpecies(species) {
+            species = species.toLowerCase().trim();
+            for (const speciesItem of speciesList) {
+                if (speciesItem.name.toLowerCase() === species || speciesItem.aliases.some(alias => alias.toLowerCase() === species)) {
+                    return speciesItem.name;
+                }
+            }
+            return species; // マッチしない場合は入力された名前をそのまま返す
+        }
+
+        // 性別の正規化
+        function normalizeGender(gender) {
+            if (!gender) return '不明';
+            gender = gender.toLowerCase().trim();
+            if (['オス', '雄', '牡', 'male', 'おす', 'ｵｽ'].includes(gender)) return 'オス';
+            if (['メス', '雌', '牝', 'female', 'めす', 'ﾒｽ'].includes(gender)) return 'メス';
+            return '不明';
+        }
+
+        function addNewSpecies(newSpeciesName, newSpeciesAliases) {
+            console.log("Adding new species:", newSpeciesName);
+            if (newSpeciesName && !speciesList.some(s => s.name === newSpeciesName)) {
+                speciesList.push({ name: newSpeciesName, aliases: newSpeciesAliases });
+
+                // 新しい獣種にアイコンを割り当てる
+                if (!speciesIcons[newSpeciesName]) {
+                    speciesIcons[newSpeciesName] = `https://cdn.jsdelivr.net/gh/pointhi/leaflet-color-markers@master/img/marker-icon-2x-${availableColors[colorIndex]}.png`;
+                    colorIndex = (colorIndex + 1) % availableColors.length;
+                }
+
+                updateSpeciesSelect();
+                updateSpeciesFilter();
+                updateYearComparisonSpeciesSelect();
+                console.log("New species added:", newSpeciesName);
+                return true;
+            }
+            console.log("Species already exists or invalid name:", newSpeciesName);
+            return false;
+        }
+
+
+        // 手入力データ追加関数を更新
+        function addNewData() {
+            const newDate = document.getElementById('newDate').value;
+            const newSpecies = document.getElementById('newSpecies').value;
+            const newGender = document.getElementById('newGender').value;
+            const newLength = document.getElementById('newLength').value;
+            const newLocation = document.getElementById('newLocation').value;
+
+            if (!newDate || !newSpecies || !newGender) {
+                alert('日付、獣種、性別は必須項目です。');
+                return;
+            }
+
+            let latitude = null;
+            let longitude = null;
+
+            if (newLocation) {
+                [latitude, longitude] = newLocation.split(',').map(coord => parseFloat(coord.trim()));
+                if (isNaN(latitude) || isNaN(longitude)) {
+                    alert('正しい緯度経度を入力してください。（例: 35.6895, 139.6917）');
+                    return;
+                }
+            }
+
+            const newData = {
+                date: new Date(newDate),
+                species: normalizeSpecies(newSpecies),
+                gender: newGender,
+                length: newLength ? parseFloat(newLength) : null,
+                latitude: latitude,
+                longitude: longitude
+            };
+
+            // 新しいデータをallDataに追加
+            allData.push(newData);
+            sortAllDataByDate(); // 新しいデータを追加した後にソート
+
+            // loadedFilesに手入力データ用のエントリを追加または更新
+            const manualEntryIndex = loadedFiles.findIndex(file => file.name === '手入力データ');
+            if (manualEntryIndex === -1) {
+                loadedFiles.push({ name: '手入力データ', dataLength: 1 });
+            } else {
+                loadedFiles[manualEntryIndex].dataLength++;
+            }
+
+            // フィルターとダッシュボードを更新
+            updateFilters();
+            updateFileList();
+            applyFiltersAndUpdateDashboard();
+
+            // マップを更新
+            if (!map) {
+                initializeMap();
+            }
+            updateMap(allData);
+
+            // 日付以外の入力フィールドをクリア
+            document.getElementById('newSpecies').value = '';
+            document.getElementById('newGender').value = '';
+            document.getElementById('newLength').value = '';
+            document.getElementById('newLocation').value = '';
+
+            // 前回入力した獣種と性別を選択状態にする
+            if (newSpecies) {
+                const speciesSelect = document.getElementById('newSpecies');
+                for (let i = 0; i < speciesSelect.options.length; i++) {
+                    if (speciesSelect.options[i].value === newSpecies) {
+                        speciesSelect.selectedIndex = i;
+                        break;
+                    }
+                }
+            }
+            if (newGender) {
+                const genderSelect = document.getElementById('newGender');
+                for (let i = 0; i < genderSelect.options.length; i++) {
+                    if (genderSelect.options[i].value === newGender) {
+                        genderSelect.selectedIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            alert('新しいデータが追加されました。日付は保持されています。');
+
+            // 次の入力のためにスペシーズ入力欄にフォーカスを移動
+            document.getElementById('newSpecies').focus();
+        }
+
+        // finalize 関数を修正
+        function finalize() {
+            console.log("Finalizing... All data count:", allData.length);
+
+            if (allData.length === 0) {
+                console.error("No valid data found in CSV files");
+                alert("CSVファイルから有効なデータを読み取ることができませんでした。ファイルの形式を確認してください。");
+                return;
+            }
+
+            try {
+                sortAllDataByDate();
+                initializeFilters();
+                initializeYearComparison();
+                updateYearComparisonSpeciesSelect();
+                selectNearestWeatherStation();
+
+                if (initializeMap()) {
+                    applyFiltersAndUpdateDashboard();
+                    resetAnimation();
+                    const timeSlider = document.getElementById('timeSlider');
+                    if (timeSlider && filteredData.length > 0) {
+                        timeSlider.max = filteredData.length - 1;
+                    }
+                }
+            } catch (error) {
+                console.error("Error during finalization:", error);
+                alert("データの初期化中にエラーが発生しました。詳細はコンソールを確認してください。");
+            }
+        }
+
+        // CSVエクスポート関数を更新
+        function exportCSV() {
+            console.log("Exporting CSV...");
+            if (allData.length === 0) {
+                alert('エクスポートするデータがありません。');
+                return;
+            }
+
+            const csvContent = Papa.unparse(allData.map(row => ({
+                '日付': formatDate(row.date),
+                '鳥獣種': row.species,
+                '性別': row.gender,
+                '体長': row.length != null ? `${row.length}` : '',
+                '捕獲場所': row.latitude && row.longitude ? `${row.latitude}, ${row.longitude}` : ''
+            })), {
+                quotes: true, // すべてのフィールドを引用符で囲む
+                quoteChar: '"', // 引用符の文字を指定
+                escapeChar: '"', // エスケープ文字を指定
+                delimiter: ",", // 区切り文字をカンマに指定
+                header: true, // ヘッダーを含める
+                newline: "\r\n" // 改行コードを指定
+            });
+
+            const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", "wildlife_capture_data.csv");
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } else {
+                alert('ご使用のブラウザはファイルのダウンロードをサポートしていません。');
+            }
+            console.log("CSV export complete");
+        }
+
+        // マニュアル表示機能の実装を更新
+        document.addEventListener('DOMContentLoaded', function () {
+            const modal = document.getElementById("manualModal");
+            const btn = document.getElementById("showManualButton");
+            const span = document.getElementsByClassName("close")[0];
+            const manualContentElement = document.getElementById("manualContent");
+
+            // マニュアルの内容をHTMLに変換
+            manualContentElement.innerHTML = marked.parse(manualContent);
+
+            // マニュアル表示ボタンのクリックイベント
+            btn.onclick = function () {
+                modal.style.display = "block";
+            }
+
+            // 閉じるボタンのクリックイベント
+            span.onclick = function () {
+                modal.style.display = "none";
+            }
+
+            // モーダル外クリックで閉じる
+            window.onclick = function (event) {
+                if (event.target == modal) {
+                    modal.style.display = "none";
+                }
+            }
+
+            // ESCキーでモーダルを閉じる
+            document.addEventListener('keydown', function (event) {
+                if (event.key === "Escape" && modal.style.display === "block") {
+                    modal.style.display = "none";
+                }
+            });
+
+            // 初期状態ではマニュアルを非表示に
+            modal.style.display = "none";
+        });
+
+        document.addEventListener('DOMContentLoaded', function () {
+            // 新しい獣種を追加するボタンのイベントリスナー
+            document.getElementById('addNewSpecies').addEventListener('click', function () {
+                console.log("Add new species button clicked");
+                document.getElementById('addSpeciesModal').style.display = 'block';
+            });
+
+            document.getElementById('saveNewSpecies').addEventListener('click', function () {
+                const newSpeciesName = document.getElementById('newSpeciesName').value.trim();
+                const newSpeciesAliases = document.getElementById('newSpeciesAliases').value.split(',').map(alias => alias.trim());
+
+                console.log("Attempting to save new species:", newSpeciesName);
+                if (newSpeciesName) {
+                    if (addNewSpecies(newSpeciesName, newSpeciesAliases)) {
+                        document.getElementById('addSpeciesModal').style.display = 'none';
+                        document.getElementById('newSpeciesName').value = '';
+                        document.getElementById('newSpeciesAliases').value = '';
+                        alert('新しい獣種が追加されました。');
+                        updateSpeciesList(newSpeciesName, newSpeciesAliases);
+                        updateYearComparisonSpeciesSelect();
+                        applyFiltersAndUpdateDashboard();
+                    } else {
+                        alert('この獣種は既に存在します。');
+                    }
+                } else {
+                    alert('獣種名を入力してください。');
+                }
+            });
+
+            // モーダルをキャンセルするボタンのイベントリスナー
+            document.getElementById('cancelNewSpecies').addEventListener('click', function () {
+                document.getElementById('addSpeciesModal').style.display = 'none';
+            });
+        });
+
+
+        document.getElementById('timeSlider').addEventListener('input', handleTimeSliderInput);
+        // ダークモード切り替え機能
+        document.addEventListener('DOMContentLoaded', function () {
+            const darkModeToggle = document.getElementById('darkModeToggle');
+            const body = document.body;
+
+            darkModeToggle.addEventListener('click', function () {
+                if (body.getAttribute('data-theme') === 'dark') {
+                    body.removeAttribute('data-theme');
+                    localStorage.setItem('theme', 'light');
+                } else {
+                    body.setAttribute('data-theme', 'dark');
+                    localStorage.setItem('theme', 'dark');
+                }
+                updateChartsTheme();
+            });
+
+            // ページ読み込み時にローカルストレージから設定を読み込む
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'dark') {
+                body.setAttribute('data-theme', 'dark');
+            }
+
+            // チャートのテーマを更新する関数
+            function updateChartsTheme() {
+                const isDarkMode = body.getAttribute('data-theme') === 'dark';
+                const chartBackgroundColor = isDarkMode ? '#2d2d2d' : '#ffffff';
+                const chartTextColor = isDarkMode ? '#e0e0e0' : '#333333';
+
+                // 各チャートのテーマを更新
+                [speciesChart, monthlyChart, genderChart, speciesGenderChart, seasonalChart, lengthDistributionChart].forEach(chart => {
+                    if (chart) {
+                        chart.options.plugins.legend.labels.color = chartTextColor;
+                        chart.options.scales.x.ticks.color = chartTextColor;
+                        chart.options.scales.y.ticks.color = chartTextColor;
+                        chart.options.scales.x.grid.color = isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+                        chart.options.scales.y.grid.color = isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+                        chart.update();
+                    }
+                });
+            }
+
+            // 初期化時にもチャートのテーマを適用
+            updateChartsTheme();
+        });
+
+        // ページ読み込み時に初期化を実行
+        window.addEventListener('DOMContentLoaded', init);
+
+    </script>
+</body>
+
+</html>
